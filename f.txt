@@ -1,0 +1,185 @@
+-- ===== СЕРВІСИ =====
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
+local mouse = player:GetMouse()
+
+-- ===== СТАНИ =====
+local espOn = false
+local triggerOn = false
+local guiVisible = true
+local highlights = {}
+
+-- ===== GUI =====
+local function createGUI()
+	if player.PlayerGui:FindFirstChild("GUIHOT") then
+		return player.PlayerGui.GUIHOT
+	end
+
+	local gui = Instance.new("ScreenGui", player.PlayerGui)
+	gui.Name = "GUIHOT"
+	gui.ResetOnSpawn = false
+
+	local main = Instance.new("Frame", gui)
+	main.Size = UDim2.new(0, 260, 0, 280)
+	main.Position = UDim2.new(0, 20, 0.5, -140)
+	main.Active = true
+	main.Draggable = true
+
+	local title = Instance.new("TextLabel", main)
+	title.Size = UDim2.new(1, 0, 0, 40)
+	title.Text = "🔥 GUIHOT 🔥"
+	title.TextScaled = true
+	title.BackgroundTransparency = 1
+
+	local function btn(text, y)
+		local b = Instance.new("TextButton", main)
+		b.Size = UDim2.new(1, -20, 0, 35)
+		b.Position = UDim2.new(0, 10, 0, y)
+		b.Text = text
+		b.TextScaled = true
+		return b
+	end
+
+	return {
+		gui = gui,
+		main = main,
+		title = title,
+		esp = btn("ESP: OFF", 60),
+		trig = btn("TRIGGER: OFF", 110),
+		hide = btn("HIDE / SHOW", 200)
+	}
+end
+
+local UI = createGUI()
+
+-- ===== ТЕМИ =====
+local themes = {
+	{bg = Color3.fromRGB(10,10,30), text = Color3.fromRGB(200,200,255)}, -- галактика
+	{bg = Color3.fromRGB(0,50,0), text = Color3.fromRGB(255,255,0)},   -- новорічна
+	{bg = Color3.fromRGB(25,25,25), text = Color3.fromRGB(255,255,255)} -- класика
+}
+local themeIndex = 1
+
+local function applyTheme()
+	local t = themes[themeIndex]
+	UI.main.BackgroundColor3 = t.bg
+	UI.title.TextColor3 = t.text
+end
+applyTheme()
+
+-- ===== ESP =====
+local function addESP(plr)
+	if plr == player then return end
+	if not plr.Character then return end
+
+	if highlights[plr] then
+		highlights[plr]:Destroy()
+	end
+
+	local h = Instance.new("Highlight")
+	h.FillColor = Color3.fromRGB(255,0,0)
+	h.OutlineColor = Color3.fromRGB(255,255,255)
+	h.FillTransparency = 0.5
+	h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	h.Adornee = plr.Character
+	h.Parent = plr.Character
+
+	highlights[plr] = h
+end
+
+local function removeESP(plr)
+	if highlights[plr] then
+		highlights[plr]:Destroy()
+		highlights[plr] = nil
+	end
+end
+
+local function setupESP(plr)
+	plr.CharacterAdded:Connect(function()
+		task.wait(0.3)
+		if espOn then addESP(plr) end
+	end)
+
+	plr.CharacterRemoving:Connect(function()
+		removeESP(plr)
+	end)
+end
+
+for _,p in pairs(Players:GetPlayers()) do
+	setupESP(p)
+end
+
+Players.PlayerAdded:Connect(setupESP)
+Players.PlayerRemoving:Connect(removeESP)
+
+-- ===== TRIGGERBOT =====
+local function getTarget()
+	local center = camera.ViewportSize / 2
+	local closest, dist = nil, math.huge
+
+	for _,plr in pairs(Players:GetPlayers()) do
+		if plr ~= player and plr.Character and plr.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = plr.Character.HumanoidRootPart
+			local pos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+			if onScreen then
+				local d = (Vector2.new(pos.X,pos.Y) - center).Magnitude
+				if d < dist then
+					dist = d
+					closest = hrp
+				end
+			end
+		end
+	end
+	return closest
+end
+
+RunService.RenderStepped:Connect(function()
+	if triggerOn then
+		local target = getTarget()
+		if target then
+			camera.CFrame = CFrame.new(camera.CFrame.Position, target.Position)
+			mouse1click()
+		end
+	end
+end)
+
+-- ===== КНОПКИ =====
+UI.esp.MouseButton1Click:Connect(function()
+	espOn = not espOn
+	UI.esp.Text = espOn and "ESP: ON" or "ESP: OFF"
+	if espOn then
+		for _,p in pairs(Players:GetPlayers()) do addESP(p) end
+	else
+		for p,_ in pairs(highlights) do removeESP(p) end
+	end
+end)
+
+UI.trig.MouseButton1Click:Connect(function()
+	triggerOn = not triggerOn
+	UI.trig.Text = triggerOn and "TRIGGER: ON" or "TRIGGER: OFF"
+end)
+
+UI.hide.MouseButton1Click:Connect(function()
+	guiVisible = not guiVisible
+	UI.main.Visible = guiVisible
+end)
+
+-- ===== ГАРЯЧІ КЛАВІШІ =====
+UIS.InputBegan:Connect(function(i,gp)
+	if gp then return end
+	if i.KeyCode == Enum.KeyCode.One then UI.esp:Activate() end
+	if i.KeyCode == Enum.KeyCode.Two then UI.trig:Activate() end
+	if i.KeyCode == Enum.KeyCode.Three then
+		themeIndex += 1
+		if themeIndex > #themes then themeIndex = 1 end
+		applyTheme()
+	end
+	if i.KeyCode == Enum.KeyCode.Four then
+		guiVisible = not guiVisible
+		UI.main.Visible = guiVisible
+	end
+end)
